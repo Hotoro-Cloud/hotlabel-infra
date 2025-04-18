@@ -1,0 +1,123 @@
+version: '3.8'
+
+services:
+  # FastAPI Application
+  api:
+    build:
+      context: .
+      dockerfile: docker/api/Dockerfile
+    container_name: hotlabel-api
+    restart: always
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./api:/app/api
+      - ./migrations:/app/migrations
+    environment:
+      - ENVIRONMENT=development
+      - DATABASE_URL=postgresql://hotlabel:hotlabelpassword@postgres:5432/hotlabel
+      - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=${SECRET_KEY}
+      - ALGORITHM=HS256
+      - ACCESS_TOKEN_EXPIRE_MINUTES=30
+      - CORS_ORIGINS=http://localhost:3000,http://localhost:8080
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - hotlabel-network
+
+  # Web Server (Nginx)
+  webserver:
+    build:
+      context: ./docker/nginx
+      dockerfile: Dockerfile
+    container_name: hotlabel-webserver
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./docker/nginx/nginx.conf:/etc/nginx/conf.d/default.conf
+      - ./static:/usr/share/nginx/html/static
+    depends_on:
+      - api
+    networks:
+      - hotlabel-network
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: hotlabel-postgres
+    restart: always
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    environment:
+      - POSTGRES_USER=hotlabel
+      - POSTGRES_PASSWORD=hotlabelpassword
+      - POSTGRES_DB=hotlabel
+    networks:
+      - hotlabel-network
+
+  # Redis for Caching and Rate Limiting
+  redis:
+    image: redis:7-alpine
+    container_name: hotlabel-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --save 60 1 --loglevel warning
+    networks:
+      - hotlabel-network
+
+  # Prometheus for Metrics
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: hotlabel-prometheus
+    restart: always
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    networks:
+      - hotlabel-network
+
+  # Grafana for Visualization
+  grafana:
+    image: grafana/grafana:latest
+    container_name: hotlabel-grafana
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning
+    depends_on:
+      - prometheus
+    networks:
+      - hotlabel-network
+
+volumes:
+  postgres_data:
+  redis_data:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  hotlabel-network:
+    driver: bridge
