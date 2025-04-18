@@ -12,6 +12,7 @@ services:
       - "8000:8000"
     volumes:
       - ./api:/app/api
+      - ./tests:/app/tests
       - ./migrations:/app/migrations
     environment:
       - ENVIRONMENT=development
