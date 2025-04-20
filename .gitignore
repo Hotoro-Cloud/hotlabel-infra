@@ -1,0 +1,15 @@
+# Environment variables
+.env
+
+# Logs
+logs/
+*.log
+
+# Docker volumes
+data/
+
+# IDE specific files
+.idea/
+.vscode/
+*.swp
+*.swo
