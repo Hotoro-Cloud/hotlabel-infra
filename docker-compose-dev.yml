@@ -7,7 +7,7 @@ services:
     container_name: hotlabel-kong
     environment:
       - KONG_DATABASE=off
-      - KONG_DECLARATIVE_CONFIG=/usr/local/kong/declarative/kong.yml
+      - KONG_DECLARATIVE_CONFIG=/usr/local/kong/declarative/kong.yaml
       - KONG_PROXY_ACCESS_LOG=/dev/stdout
       - KONG_ADMIN_ACCESS_LOG=/dev/stdout
       - KONG_PROXY_ERROR_LOG=/dev/stderr
@@ -19,7 +19,7 @@ services:
       - "8001:8001"
       - "8444:8444"
     volumes:
-      - ./kong/kong.yml:/usr/local/kong/declarative/kong.yml
+      - ./kong/kong.yaml:/usr/local/kong/declarative/kong.yaml
     networks:
       - hotlabel-network
     healthcheck:
@@ -117,12 +117,25 @@ services:
       - REDIS_URL=redis://redis:6379/2
       - API_V1_STR=/api/v1
       - SERVICE_NAME=quality-assurance
-      - TASKS_SERVICE_URL=http://tasks:8000/api/v1
+      - TASK_SERVICE_URL=http://tasks:8000/api/v1
+      - USER_SERVICE_URL=http://users:8000/api/v1
+      - SECRET_KEY=your-secure-key-here
+      - HIGH_CONFIDENCE_THRESHOLD=0.85
+      - MEDIUM_CONFIDENCE_THRESHOLD=0.60
+      - GOLDEN_SET_PERCENTAGE=0.10
+      - CONSENSUS_REQUIRED_AGREEMENT=0.75
+      - MINIMUM_CONSENSUS_VALIDATORS=3
     depends_on:
       - postgres
       - redis
     networks:
       - hotlabel-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
     restart: always
 
   # User Profiling Service
@@ -148,10 +161,10 @@ services:
     image: prom/prometheus:latest
     container_name: hotlabel-prometheus
     volumes:
-      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./prometheus/prometheus.yaml:/etc/prometheus/prometheus.yaml
       - prometheus-data:/prometheus
     command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--config.file=/etc/prometheus/prometheus.yaml'
       - '--storage.tsdb.path=/prometheus'
       - '--web.console.libraries=/etc/prometheus/console_libraries'
       - '--web.console.templates=/etc/prometheus/consoles'
