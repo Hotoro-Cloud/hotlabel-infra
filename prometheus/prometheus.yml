@@ -36,6 +36,33 @@ scrape_configs:
     static_configs:
       - targets: ["qa:8000"]
     metrics_path: /metrics
+    scrape_interval: 10s
+    scrape_timeout: 5s
+    metrics_path: /metrics
+    scheme: http
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement: qa
+      - source_labels: [job]
+        target_label: service
+        replacement: quality-assurance
+
+  # Health check monitoring for QA service
+  - job_name: "qa-health"
+    metrics_path: /health
+    static_configs:
+      - targets: ["qa:8000"]
+    scrape_interval: 30s
+    scheme: http
+
+  # Readiness check monitoring for QA service
+  - job_name: "qa-ready"
+    metrics_path: /ready
+    static_configs:
+      - targets: ["qa:8000"]
+    scrape_interval: 60s
+    scheme: http
 
   - job_name: "users"
     static_configs:
