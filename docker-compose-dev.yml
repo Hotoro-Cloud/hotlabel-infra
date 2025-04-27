@@ -7,7 +7,7 @@ services:
     container_name: hotlabel-kong
     environment:
       - KONG_DATABASE=off
-      - KONG_DECLARATIVE_CONFIG=/usr/local/kong/declarative/kong.yaml
+      - KONG_DECLARATIVE_CONFIG=/usr/local/kong/declarative/kong.yml
       - KONG_PROXY_ACCESS_LOG=/dev/stdout
       - KONG_ADMIN_ACCESS_LOG=/dev/stdout
       - KONG_PROXY_ERROR_LOG=/dev/stderr
@@ -19,7 +19,7 @@ services:
       - "8001:8001"
       - "8444:8444"
     volumes:
-      - ./kong/kong.yaml:/usr/local/kong/declarative/kong.yaml
+      - ./kong/kong.yml:/usr/local/kong/declarative/kong.yml
     networks:
       - hotlabel-network
     healthcheck:

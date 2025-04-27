@@ -6,27 +6,27 @@ services:
     image: kong/kong:3.4
     container_name: hotlabel-kong
     environment:
-      - KONG_DATABASE=off
-      - KONG_DECLARATIVE_CONFIG=/usr/local/kong/declarative/kong.yml
-      - KONG_PROXY_ACCESS_LOG=/dev/stdout
-      - KONG_ADMIN_ACCESS_LOG=/dev/stdout
-      - KONG_PROXY_ERROR_LOG=/dev/stderr
-      - KONG_ADMIN_ERROR_LOG=/dev/stderr
-      - KONG_ADMIN_LISTEN=0.0.0.0:8001, 0.0.0.0:8444 ssl
+      KONG_DATABASE: "off"
+      KONG_PROXY_ACCESS_LOG: /dev/stdout
+      KONG_ADMIN_ACCESS_LOG: /dev/stdout
+      KONG_PROXY_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_LISTEN: 0.0.0.0:8001
+      KONG_DECLARATIVE_CONFIG: /usr/local/kong/declarative/kong.yml
     ports:
       - "8000:8000"
       - "8443:8443"
       - "8001:8001"
       - "8444:8444"
     volumes:
-      - ./kong/kong.yml:/usr/local/kong/declarative/kong.yml
+      - ./kong:/usr/local/kong/declarative
     networks:
       - hotlabel-network
     healthcheck:
       test: ["CMD", "kong", "health"]
       interval: 10s
-      timeout: 5s
-      retries: 5
+      timeout: 10s
+      retries: 10
     restart: always
 
   # Shared Database
@@ -36,17 +36,17 @@ services:
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
-      - POSTGRES_MULTIPLE_DATABASES=hotlabel_publishers,hotlabel_tasks,hotlabel_qa,hotlabel_users
-    volumes:
-      - ./postgres/init-multiple-databases.sh:/docker-entrypoint-initdb.d/init-multiple-databases.sh
-      - postgres-data:/var/lib/postgresql/data
+      - POSTGRES_MULTIPLE_DATABASES=hotlabel_users,hotlabel_tasks,hotlabel_qa,hotlabel_publishers
     ports:
       - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/create-multiple-postgresql-databases.sh:/docker-entrypoint-initdb.d/create-multiple-postgresql-databases.sh
     networks:
       - hotlabel-network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 10s
+      interval: 5s
       timeout: 5s
       retries: 5
     restart: always
@@ -57,31 +57,35 @@ services:
     container_name: hotlabel-redis
     ports:
       - "6379:6379"
-    volumes:
-      - redis-data:/data
-    networks:
-      - hotlabel-network
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
+      interval: 5s
       timeout: 5s
       retries: 5
-    restart: always
+    networks:
+      - hotlabel-network
 
   # Publisher Management Service
   publishers:
     build:
-      context: ../hotlabel-publishers/
+      context: ../hotlabel-publishers
       dockerfile: Dockerfile
     container_name: hotlabel-publishers
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/hotlabel_publishers
-      - REDIS_URL=redis://redis:6379/0
-      - API_V1_STR=/api/v1
-      - SERVICE_NAME=publisher-management
+      - REDIS_URL=redis://redis:6379/4
+      - SERVICE_NAME=hotlabel-publishers
+      - SERVICE_PORT=8004
+      - LOG_LEVEL=info
+    ports:
+      - "8004:8004"
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ../hotlabel-publishers:/app
     networks:
       - hotlabel-network
     restart: always
@@ -89,19 +93,24 @@ services:
   # Task Management Service
   tasks:
     build:
-      context: ../hotlabel-tasks/
+      context: ../hotlabel-tasks
       dockerfile: Dockerfile
     container_name: hotlabel-tasks
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/hotlabel_tasks
-      - REDIS_URL=redis://redis:6379/1
-      - API_V1_STR=/api/v1
-      - SERVICE_NAME=task-management
-      - QA_SERVICE_URL=http://qa:8000/api/v1
-      - USERS_SERVICE_URL=http://users:8000/api/v1
+      - REDIS_URL=redis://redis:6379/2
+      - SERVICE_NAME=hotlabel-tasks
+      - SERVICE_PORT=8002
+      - LOG_LEVEL=info
+    ports:
+      - "8002:8002"
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ../hotlabel-tasks:/app
     networks:
       - hotlabel-network
     restart: always
@@ -109,37 +118,49 @@ services:
   # Quality Assurance Service
   qa:
     build:
-      context: ../hotlabel-qa/
+      context: ../hotlabel-qa
       dockerfile: Dockerfile
     container_name: hotlabel-qa
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/hotlabel_qa
-      - REDIS_URL=redis://redis:6379/2
-      - API_V1_STR=/api/v1
-      - SERVICE_NAME=quality-assurance
-      - TASKS_SERVICE_URL=http://tasks:8000/api/v1
-      - SECRET_KEY=your-secure-secret-key-for-development-only 
+      - REDIS_URL=redis://redis:6379/3
+      - SERVICE_NAME=hotlabel-qa
+      - SERVICE_PORT=8003
+      - LOG_LEVEL=info
+    ports:
+      - "8003:8003"
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ../hotlabel-qa:/app
     networks:
       - hotlabel-network
     restart: always
 
-  # User Profiling Service
+  # User Management Service
   users:
     build:
-      context: ../hotlabel-users/
+      context: ../hotlabel-users
       dockerfile: Dockerfile
     container_name: hotlabel-users
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/hotlabel_users
-      - REDIS_URL=redis://redis:6379/3
-      - API_V1_STR=/api/v1
-      - SERVICE_NAME=user-profiling
+      - REDIS_URL=redis://redis:6379/1
+      - SERVICE_NAME=hotlabel-users
+      - SERVICE_PORT=8005
+      - LOG_LEVEL=info
+    ports:
+      - "8005:8005"
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ../hotlabel-users:/app
     networks:
       - hotlabel-network
     restart: always
@@ -148,17 +169,16 @@ services:
   prometheus:
     image: prom/prometheus:latest
     container_name: hotlabel-prometheus
+    ports:
+      - "9090:9090"
     volumes:
-      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
-      - prometheus-data:/prometheus
+      - ./prometheus:/etc/prometheus
+      - prometheus_data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
-      - '--web.console.libraries=/etc/prometheus/console_libraries'
-      - '--web.console.templates=/etc/prometheus/consoles'
-      - '--web.enable-lifecycle'
-    ports:
-      - "9090:9090"
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
     networks:
       - hotlabel-network
     restart: always
@@ -167,26 +187,24 @@ services:
   grafana:
     image: grafana/grafana:latest
     container_name: hotlabel-grafana
-    volumes:
-      - ./grafana/provisioning:/etc/grafana/provisioning
-      - grafana-data:/var/lib/grafana
-    environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin
-      - GF_USERS_ALLOW_SIGN_UP=false
     ports:
       - "3000:3000"
-    depends_on:
-      - prometheus
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
     networks:
       - hotlabel-network
     restart: always
 
 networks:
   hotlabel-network:
-    driver: bridge
+    name: hotlabel-network
 
 volumes:
-  postgres-data:
-  redis-data:
-  prometheus-data:
-  grafana-data:
+  postgres_data:
+  prometheus_data:
+  grafana_data:
