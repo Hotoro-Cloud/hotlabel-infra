@@ -13,3 +13,6 @@ data/
 .vscode/
 *.swp
 *.swo
+
+venv/
+.pytest_cache/

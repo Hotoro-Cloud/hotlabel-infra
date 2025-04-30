@@ -5,20 +5,36 @@ services:
   - name: publishers-service
     url: http://publishers:8004
     routes:
-      - name: publishers-api-route
-        paths:
-          - /api/v1/publishers
-        strip_path: false
       - name: publishers-health-route
         paths:
           - /api/v1/publishers/health
+        strip_path: false
+        preserve_host: true
+        regex_priority: 200
+      - name: publishers-api-route
+        paths:
+          - /api/v1/publishers
+          - /api/v1/publishers/(?:\w+)
+        strip_path: false
+        preserve_host: true
+        regex_priority: 100
+      - name: publishers-internal-route
+        paths:
+          - /internal/api/v1/publishers
+          - /internal/api/v1/publishers/(?:\w+)
         strip_path: true
+        preserve_host: true
+        regex_priority: 100
+        headers:
+          X-Internal-Service:
+            - "true"
       - name: publishers-docs-route
         paths:
-          - /api/v1/publishers/docs
-          - /api/v1/publishers/redoc
-          - /api/v1/publishers/openapi.json
-        strip_path: true
+          - /docs
+          - /openapi.json
+        strip_path: false
+        preserve_host: true
+        regex_priority: 50
     plugins:
       - name: cors
         config:
@@ -30,6 +46,7 @@ services:
             - PUT
             - DELETE
             - OPTIONS
+            - PATCH
           headers:
             - Accept
             - Accept-Version
@@ -38,32 +55,121 @@ services:
             - Content-Type
             - Date
             - X-Auth-Token
+            - X-API-Key
           exposed_headers:
             - X-Auth-Token
           credentials: true
           max_age: 3600
+          preflight_continue: false
       - name: rate-limiting
         config:
-          minute: 60
+          minute: 100
           policy: local
 
   - name: tasks-service
     url: http://tasks:8002
     routes:
+      - name: tasks-health-route
+        paths:
+          - /health
+        strip_path: false
+        preserve_host: true
+        regex_priority: 200
       - name: tasks-api-route
         paths:
           - /api/v1/tasks
+          - /api/v1/tasks/(?:\w+)
+          - /api/v1/tasks/(?:\w+)/assign
+          - /api/v1/tasks/(?:\w+)/status
+          - /api/v1/tasks/assign
+          - /api/v1/tasks/status
         strip_path: false
-      - name: tasks-health-route
+        preserve_host: true
+        regex_priority: 100
+      - name: tasks-internal-route
         paths:
-          - /api/v1/tasks/health
+          - /internal/api/v1/tasks
+          - /internal/api/v1/tasks/(?:\w+)
+          - /internal/api/v1/tasks/(?:\w+)/assign
+          - /internal/api/v1/tasks/(?:\w+)/status
+          - /internal/api/v1/tasks/assign
+          - /internal/api/v1/tasks/status
         strip_path: true
+        preserve_host: true
+        regex_priority: 100
+        headers:
+          X-Internal-Service:
+            - "true"
       - name: tasks-docs-route
         paths:
-          - /api/v1/tasks/docs
-          - /api/v1/tasks/redoc
-          - /api/v1/tasks/openapi.json
+          - /docs
+          - /openapi.json
+        strip_path: false
+        preserve_host: true
+        regex_priority: 50
+    plugins:
+      - name: cors
+        config:
+          origins:
+            - "*"
+          methods:
+            - GET
+            - POST
+            - PUT
+            - DELETE
+            - OPTIONS
+            - PATCH
+          headers:
+            - Accept
+            - Accept-Version
+            - Content-Length
+            - Content-MD5
+            - Content-Type
+            - Date
+            - X-Auth-Token
+            - X-API-Key
+          exposed_headers:
+            - X-Auth-Token
+          credentials: true
+          max_age: 3600
+          preflight_continue: false
+      - name: rate-limiting
+        config:
+          minute: 100
+          policy: local
+
+  - name: providers-service
+    url: http://tasks:8002
+    routes:
+      - name: providers-api-route
+        paths:
+          - /api/v1/providers
+        strip_path: false
+        preserve_host: true
+        regex_priority: 100
+      - name: providers-internal-route
+        paths:
+          - /internal/api/v1/providers
         strip_path: true
+        preserve_host: true
+        regex_priority: 90
+        headers:
+          X-Internal-Service:
+            - "true"
+      - name: providers-health-route
+        paths:
+          - /api/v1/providers/health
+        strip_path: false
+        preserve_host: true
+        regex_priority: 80
+      - name: providers-docs-route
+        paths:
+          - /api/v1/providers/docs
+          - /api/v1/providers/redoc
+          - /api/v1/providers/openapi.json
+        strip_path: false
+        preserve_host: true
+        regex_priority: 70
     plugins:
       - name: cors
         config:
@@ -85,6 +191,8 @@ services:
             - Date
             - X-Auth-Token
             - Authorization
+            - X-Internal-Service
+            - X-API-Key
           exposed_headers:
             - X-Auth-Token
           credentials: true
@@ -93,163 +201,3 @@ services:
         config:
           minute: 60
           policy: local
-
-  - name: qa-service
-    url: http://qa:8003
-    routes:
-      - name: qa-api-route
-        paths:
-          - /api/v1/qa
-        strip_path: false
-      - name: qa-health-route
-        paths:
-          - /api/v1/qa/health
-        strip_path: true
-      - name: qa-docs-route
-        paths:
-          - /api/v1/qa/docs
-          - /api/v1/qa/redoc
-          - /api/v1/qa/openapi.json
-        strip_path: false
-    plugins:
-      - name: cors
-        config:
-          origins:
-            - "*"
-          methods:
-            - GET
-            - POST
-            - PUT
-            - DELETE
-            - OPTIONS
-          headers:
-            - Accept
-            - Accept-Version
-            - Content-Length
-            - Content-MD5
-            - Content-Type
-            - Date
-            - X-Auth-Token
-          exposed_headers:
-            - X-Auth-Token
-          credentials: true
-          max_age: 3600
-      - name: rate-limiting
-        config:
-          minute: 60
-          policy: local
-
-  - name: users-service
-    url: http://users:8005
-    routes:
-      - name: users-api-route
-        paths:
-          - /api/v1/users
-        strip_path: false
-      - name: users-health-route
-        paths:
-          - /api/v1/users/health
-        strip_path: true
-      - name: users-docs-route
-        paths:
-          - /api/v1/users/docs
-          - /api/v1/users/redoc
-          - /api/v1/users/openapi.json
-        strip_path: false
-    plugins:
-      - name: cors
-        config:
-          origins:
-            - "*"
-          methods:
-            - GET
-            - POST
-            - PUT
-            - DELETE
-            - OPTIONS
-          headers:
-            - Accept
-            - Accept-Version
-            - Content-Length
-            - Content-MD5
-            - Content-Type
-            - Date
-            - X-Auth-Token
-          exposed_headers:
-            - X-Auth-Token
-          credentials: true
-          max_age: 3600
-      - name: rate-limiting
-        config:
-          minute: 60
-          policy: local
-
-  - name: providers-service
-    url: http://tasks:8002
-    routes:
-      - name: providers-api-route
-        paths:
-          - /api/v1/providers
-        strip_path: false
-      - name: providers-health-route
-        paths:
-          - /api/v1/providers/health
-        strip_path: true
-      - name: providers-docs-route
-        paths:
-          - /api/v1/providers/docs
-          - /api/v1/providers/redoc
-          - /api/v1/providers/openapi.json
-        strip_path: true
-    plugins:
-      - name: cors
-        config:
-          origins:
-            - "*"
-          methods:
-            - GET
-            - POST
-            - PUT
-            - DELETE
-            - OPTIONS
-          headers:
-            - Accept
-            - Accept-Version
-            - Content-Length
-            - Content-MD5
-            - Content-Type
-            - Date
-            - X-Auth-Token
-            - Authorization
-          exposed_headers:
-            - X-Auth-Token
-          credentials: true
-          max_age: 3600
-      - name: rate-limiting
-        config:
-          minute: 60
-          policy: local
-
-plugins:
-  - name: cors
-    config:
-      origins:
-        - "*"
-      methods:
-        - GET
-        - POST
-        - PUT
-        - DELETE
-        - OPTIONS
-      headers:
-        - Accept
-        - Accept-Version
-        - Content-Length
-        - Content-MD5
-        - Content-Type
-        - Date
-        - X-Auth-Token
-      exposed_headers:
-        - X-Auth-Token
-      credentials: true
-      max_age: 3600
