@@ -214,6 +214,41 @@ class TaskLifecycle:
         result = response.json()
         print(f"Retrieved {len(result)} tasks for publisher")
         
+        # For debugging: check tasks directly from the tasks service
+        print("\n=== DEBUG: Checking Tasks Service Directly ===")
+        internal_headers = {"X-Internal-Key": "internal_service_key", "Content-Type": "application/json"}
+        debug_response = requests.get(
+            f"{TASKS_SERVICE_URL}/api/v1/tasks/available?publisher_id={self.publisher_id}",
+            headers=internal_headers
+        )
+        
+        print(f"Status Code: {debug_response.status_code}")
+        try:
+            debug_data = debug_response.json()
+            print(f"Available Tasks from Tasks Service: {debug_data.get('total', 0)}")
+            for task in debug_data.get('items', []):
+                print(f"- Task ID: {task.get('id')}, Status: {task.get('status')}, Publisher ID: {task.get('publisher_id')}")
+        except:
+            print(f"Raw response: {debug_response.text}")
+        print("-" * 50)
+        
+        # Also check all tasks
+        print("\n=== DEBUG: Checking All Tasks ===")
+        all_tasks_response = requests.get(
+            f"{TASKS_SERVICE_URL}/api/v1/tasks",
+            headers=internal_headers
+        )
+        
+        print(f"Status Code: {all_tasks_response.status_code}")
+        try:
+            all_tasks_data = all_tasks_response.json()
+            print(f"Total Tasks: {all_tasks_data.get('total', 0)}")
+            for task in all_tasks_data.get('items', []):
+                print(f"- Task ID: {task.get('id')}, Status: {task.get('status')}, Publisher ID: {task.get('publisher_id')}")
+        except:
+            print(f"Raw response: {all_tasks_response.text}")
+        print("-" * 50)
+        
         return result
         
     def publisher_submits_result(self) -> Dict[str, Any]:
